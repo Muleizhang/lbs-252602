@@ -159,6 +159,7 @@ async def search_bbox(
     minLat: float = Query(...),
     maxLng: float = Query(...),
     maxLat: float = Query(...),
+    has_extended: bool | None = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ):
@@ -166,12 +167,16 @@ async def search_bbox(
         Poi.location, func.ST_MakeEnvelope(minLng, minLat, maxLng, maxLat, 4326)
     )
     count_stmt = select(func.count()).select_from(Poi).where(filter_cond)
+    stmt = select(Poi).where(filter_cond)
+
+    if has_extended is not None:
+        count_stmt = count_stmt.where(Poi.has_extended == has_extended)
+        stmt = stmt.where(Poi.has_extended == has_extended)
+
     total = (await db.execute(count_stmt)).scalar()
 
     stmt = (
-        select(Poi)
-        .where(filter_cond)
-        .order_by(Poi.name)
+        stmt.order_by(Poi.name)
         .offset((page - 1) * size)
         .limit(size)
     )
@@ -192,18 +197,23 @@ async def search_radius(
     lng: float = Query(...),
     lat: float = Query(...),
     radius: float = Query(..., description="meters"),
+    has_extended: bool | None = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ):
     center = func.ST_GeogFromText(f"SRID=4326;POINT({lng} {lat})")
     filter_cond = func.ST_DWithin(Poi.location, center, radius)
     count_stmt = select(func.count()).select_from(Poi).where(filter_cond)
+    stmt = select(Poi).where(filter_cond)
+
+    if has_extended is not None:
+        count_stmt = count_stmt.where(Poi.has_extended == has_extended)
+        stmt = stmt.where(Poi.has_extended == has_extended)
+
     total = (await db.execute(count_stmt)).scalar()
 
     stmt = (
-        select(Poi)
-        .where(filter_cond)
-        .order_by(func.ST_Distance(Poi.location, center))
+        stmt.order_by(func.ST_Distance(Poi.location, center))
         .offset((page - 1) * size)
         .limit(size)
     )

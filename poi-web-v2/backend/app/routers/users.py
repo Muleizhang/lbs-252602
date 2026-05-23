@@ -5,13 +5,38 @@ from sqlalchemy import select
 
 from app.deps import DbSession, CurrentUser
 from app.errors import BizError, ErrorCode
-from app.models import ApiKey
+from app.models import ApiKey, User
 from app.schemas.apikey import ApiKeyCreateReq, ApiKeyOut, ApiKeyCreatedOut
 from app.schemas.response import ok
 from app.utils.security import hash_password
 
+from app.schemas.auth import UserUpdateReq
+from app.routers.auth import _user_out
+
 router = APIRouter(prefix="/api/v1/users/me", tags=["users"])
 
+
+@router.get("")
+async def get_my_profile(user: CurrentUser):
+    return ok(_user_out(user))
+
+
+@router.put("")
+async def update_my_profile(body: UserUpdateReq, user: CurrentUser, db: DbSession):
+    if body.email:
+        # Check if email is already taken
+        existing = await db.execute(
+            select(User).where((User.email == body.email) & (User.id != user.id))
+        )
+        if existing.scalar_one_or_none():
+            raise BizError(ErrorCode.CONFLICT, "邮箱已被占用")
+        user.email = body.email
+    if body.password:
+        user.password_hash = hash_password(body.password)
+        
+    await db.commit()
+    await db.refresh(user)
+    return ok(_user_out(user))
 
 def _fmt(ak: ApiKey, *, include_plain: bool = False, plain: str = "") -> dict:
     d = ApiKeyOut(

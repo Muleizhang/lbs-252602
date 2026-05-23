@@ -26,3 +26,8 @@ class UserOut(BaseModel):
     created_at: str
 
     model_config = {"from_attributes": True}
+
+
+class UserUpdateReq(BaseModel):
+    email: str | None = None
+    password: str | None = None

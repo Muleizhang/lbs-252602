@@ -247,6 +247,7 @@
     var selProv = tb.querySelector('#sel-province');
     var selCat = tb.querySelector('#sel-category');
     var selBatch = tb.querySelector('#sel-batch');
+    var selExtended = tb.querySelector('#sel-extended');
     var txtName = tb.querySelector('#txt-name');
     var btnSearch = tb.querySelector('#btn-search');
     var btnRect = tb.querySelector('#btn-rect');
@@ -289,6 +290,7 @@
       v = selProv.value; if (v) query.push('province=' + encodeURIComponent(v));
       v = selCat.value; if (v) query.push('category=' + encodeURIComponent(v));
       v = selBatch.value; if (v) query.push('batch=' + v);
+      v = selExtended.value; if (v !== '') query.push('has_extended=' + (v === '1' ? 'true' : 'false'));
       v = txtName.value.trim(); if (v) query.push('name=' + encodeURIComponent(v));
       params += query.join('&');
       
@@ -329,6 +331,8 @@
         var sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
         var params = '?minLng=' + sw.lng + '&minLat=' + sw.lat +
                      '&maxLng=' + ne.lng + '&maxLat=' + ne.lat;
+        var ext = selExtended.value;
+        if (ext !== '') params += '&has_extended=' + (ext === '1' ? 'true' : 'false');
         
         fetchAllPages('/pois/search/bbox', params, function(allData) {
           renderPois(allData);
@@ -357,6 +361,8 @@
         var radius = e.obj.getRadius();
         var params = '?lng=' + center.lng + '&lat=' + center.lat +
                      '&radius=' + Math.round(radius);
+        var ext = selExtended.value;
+        if (ext !== '') params += '&has_extended=' + (ext === '1' ? 'true' : 'false');
         
         fetchAllPages('/pois/search/radius', params, function(allData) {
           renderPois(allData);
@@ -375,6 +381,7 @@
       selProv.value = '';
       selCat.value = '';
       selBatch.value = '';
+      selExtended.value = '';
       txtName.value = '';
       if (massMarks) {
         massMarks.clear();
