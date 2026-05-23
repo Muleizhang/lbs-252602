@@ -104,14 +104,14 @@
     });
   }
 
-  function createRedDotIcon() {
+  function createDotIcon(color) {
     var canvas = document.createElement('canvas');
     canvas.width = 24;
     canvas.height = 24;
     var ctx = canvas.getContext('2d');
     ctx.shadowColor = 'rgba(0,0,0,0.4)';
     ctx.shadowBlur = 4;
-    ctx.fillStyle = '#f5222d';
+    ctx.fillStyle = color;
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -121,11 +121,24 @@
     return canvas.toDataURL();
   }
 
-  var dotStyle = {
-    url: createRedDotIcon(),
-    size: new AMap.Size(24, 24),
-    anchor: new AMap.Pixel(12, 12)
-  };
+  var batchColors = [
+    '#f5222d', // 1: 红
+    '#fa8c16', // 2: 橙
+    '#fadb14', // 3: 黄
+    '#52c41a', // 4: 绿
+    '#1890ff', // 5: 蓝
+    '#2f54eb', // 6: 靛
+    '#722ed1', // 7: 紫
+    '#eb2f96'  // 8: 粉(第八批)
+  ];
+
+  var dotStyles = batchColors.map(function(color) {
+    return {
+      url: createDotIcon(color),
+      size: new AMap.Size(24, 24),
+      anchor: new AMap.Pixel(12, 12)
+    };
+  });
 
   function renderPois(list) {
     if (!list) return;
@@ -139,8 +152,11 @@
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var pos = p.location.gcj02;
+      var b = parseInt(p.batch, 10);
+      var sIdx = (!isNaN(b) && b > 0) ? (b - 1) % dotStyles.length : 0;
       data.push({
         lnglat: [pos.lng, pos.lat],
+        style: sIdx,
         extData: p
       });
     }
@@ -148,7 +164,7 @@
     massMarks = new AMap.MassMarks(data, {
       zIndex: 111,
       cursor: 'pointer',
-      style: dotStyle
+      style: dotStyles
     });
 
     massMarks.on('mouseover', function (e) {
