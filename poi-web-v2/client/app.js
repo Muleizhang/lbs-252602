@@ -40,7 +40,7 @@
 
   function apiGet(path) { return api('GET', path); }
 
-  var map, cluster, markerList = [];
+  var map, markerList = [];
   var geoMarker, geoCircle;
   var mouseTool, radiusMarker;
   var infoWin = document.getElementById('info-window');
@@ -51,29 +51,8 @@
       viewMode: '2D',
     });
 
-    cluster = new AMap.MarkerCluster(map, [], {
-      gridSize: 60,
-      renderMarker: function (ctx) {
-        ctx.marker.setContent('<div style="width:12px;height:12px;background:#ff4d4f;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.3)"></div>');
-        ctx.marker.setOffset(new AMap.Pixel(-6, -6));
-        ctx.marker.on('click', function () {
-          showInfo(ctx.data[0].extData);
-        });
-      },
-      renderClusterMarker: function (ctx) {
-        var size = Math.min(60, Math.max(30, 20 + ctx.count.toString().length * 10));
-        ctx.marker.setContent('<div style="width:'+size+'px;height:'+size+'px;line-height:'+size+'px;background:rgba(24,144,255,0.8);color:#fff;border-radius:50%;text-align:center;font-size:12px;box-shadow:0 0 8px rgba(0,0,0,.3)">' + ctx.count + '</div>');
-        ctx.marker.setOffset(new AMap.Pixel(-size/2, -size/2));
-      }
-    });
-
-    map.on('moveend', debounce(loadPoisByView, 300));
-    map.on('zoomend', debounce(loadPoisByView, 300));
-
-    loadPoisByView();
     initGeolocation();
     initToolbar();
-    initInfoWindow();
   };
 
   function debounce(fn, ms) {
@@ -96,22 +75,29 @@
 
   function renderPois(list) {
     if (!list) return;
-    var data = [];
+    if (markerList.length) map.remove(markerList);
+    markerList = [];
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var pos = p.location.gcj02;
-      data.push({
-        lnglat: [pos.lng, pos.lat],
+      var m = new AMap.Marker({
+        position: [pos.lng, pos.lat],
+        content: '<div style="width:16px;height:16px;background:#f5222d;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.4)"></div>',
+        offset: new AMap.Pixel(-8, -8),
         extData: p
       });
+      (function (poi) {
+        m.on('mouseover', function () { showInfo(poi); });
+        m.on('mouseout', function () { infoWin.style.display = 'none'; });
+      })(p);
+      markerList.push(m);
     }
-    cluster.setData(data);
+    map.add(markerList);
   }
 
   function showInfo(poi) {
     var loc = poi.location;
-    var html = '<div class="close-btn" onclick="document.getElementById(\'info-window\').style.display=\'none\'">&times;</div>';
-    html += '<h3>' + poi.name + '</h3>';
+    var html = '<h3>' + poi.name + '</h3>';
     if (poi.code) html += '<div class="field">编号：<b>' + poi.code + '</b></div>';
     html += '<div class="field">类别：<b>' + poi.category + '</b></div>';
     if (poi.era) html += '<div class="field">年代：<b>' + poi.era + '</b></div>';
@@ -139,7 +125,7 @@
   }
 
   function initInfoWindow() {
-    map.on('click', function () { infoWin.style.display = 'none'; });
+    // 移除了点击地图关闭信息窗的逻辑，因为现在由 hover (mouseout) 控制
   }
 
   function initGeolocation() {
@@ -283,8 +269,8 @@
       selCat.value = '';
       selBatch.value = '';
       txtName.value = '';
-      cluster.setMarkers([]);
-      loadPoisByView();
+      if (markerList.length) map.remove(markerList);
+      markerList = [];
     });
   }
 
