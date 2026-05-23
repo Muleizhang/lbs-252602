@@ -5,11 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from slowapi.errors import RateLimitExceeded
+
 from app.config import settings
 from app.errors import BizError, ErrorCode, ERROR_META, trace_id
 from app.schemas.response import ok, fail
 from app.routers import auth, users, pois
 from app.routers.pois import meta_router
+from app.utils.ratelimit import limiter, rate_limit_exceeded_handler
 
 logger = logging.getLogger("app")
 
@@ -19,6 +22,9 @@ app = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi.json",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,

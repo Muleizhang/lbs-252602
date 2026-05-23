@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from app.deps import DbSession, CurrentUser
@@ -7,12 +7,14 @@ from app.models import User
 from app.schemas.auth import RegisterReq, LoginReq, TokenResp, UserOut
 from app.schemas.response import ok
 from app.utils.security import hash_password, verify_password, create_access_token
+from app.utils.ratelimit import limiter
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
 @router.post("/register")
-async def register(body: RegisterReq, db: DbSession):
+@limiter.limit("10/minute")
+async def register(request: Request, body: RegisterReq, db: DbSession):
     existing = await db.execute(
         select(User).where((User.username == body.username) | (User.email == body.email))
     )
@@ -30,7 +32,8 @@ async def register(body: RegisterReq, db: DbSession):
 
 
 @router.post("/login")
-async def login(body: LoginReq, db: DbSession):
+@limiter.limit("10/minute")
+async def login(request: Request, body: LoginReq, db: DbSession):
     result = await db.execute(select(User).where(User.username == body.username))
     user = result.scalar_one_or_none()
     if not user or not verify_password(body.password, user.password_hash):
