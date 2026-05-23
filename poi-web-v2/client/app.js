@@ -69,7 +69,8 @@
     fetchPage(1);
   }
 
-  var map, markerList = [];
+  var map;
+  var massMarks = null;
   var geoMarker, geoCircle;
   var mouseTool;
   var searchOverlay = null;
@@ -103,26 +104,61 @@
     });
   }
 
+  function createRedDotIcon() {
+    var canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
+    var ctx = canvas.getContext('2d');
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = '#f5222d';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(12, 12, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    return canvas.toDataURL();
+  }
+
+  var dotStyle = {
+    url: createRedDotIcon(),
+    size: new AMap.Size(24, 24),
+    anchor: new AMap.Pixel(12, 12)
+  };
+
   function renderPois(list) {
     if (!list) return;
-    if (markerList.length) map.remove(markerList);
-    markerList = [];
+    if (massMarks) {
+      massMarks.clear();
+      map.remove(massMarks);
+      massMarks = null;
+    }
+    
+    var data = [];
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var pos = p.location.gcj02;
-      var m = new AMap.Marker({
-        position: [pos.lng, pos.lat],
-        content: '<div style="width:16px;height:16px;background:#f5222d;border-radius:50%;border:2px solid #fff;box-shadow:0 0 6px rgba(0,0,0,.4)"></div>',
-        offset: new AMap.Pixel(-8, -8),
+      data.push({
+        lnglat: [pos.lng, pos.lat],
         extData: p
       });
-      (function (poi) {
-        m.on('mouseover', function () { showInfo(poi); });
-        m.on('mouseout', function () { infoWin.style.display = 'none'; });
-      })(p);
-      markerList.push(m);
     }
-    map.add(markerList);
+
+    massMarks = new AMap.MassMarks(data, {
+      zIndex: 111,
+      cursor: 'pointer',
+      style: dotStyle
+    });
+
+    massMarks.on('mouseover', function (e) {
+      showInfo(e.data.extData);
+    });
+    massMarks.on('mouseout', function () {
+      infoWin.style.display = 'none';
+    });
+
+    massMarks.setMap(map);
   }
 
   function showInfo(poi) {
@@ -324,8 +360,11 @@
       selCat.value = '';
       selBatch.value = '';
       txtName.value = '';
-      if (markerList.length) map.remove(markerList);
-      markerList = [];
+      if (massMarks) {
+        massMarks.clear();
+        map.remove(massMarks);
+        massMarks = null;
+      }
       clearSearchOverlay();
     });
   }
