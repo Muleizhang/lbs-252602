@@ -5,6 +5,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Computed,
     DateTime,
     ForeignKey,
     Index,
@@ -91,7 +92,11 @@ class Poi(Base):
     description: Mapped[str | None] = mapped_column(Text)
     image_urls: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, default=list)
     website: Mapped[str | None] = mapped_column(Text)
-    has_extended: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    has_extended: Mapped[bool] = mapped_column(
+        Boolean,
+        Computed("COALESCE(array_length(image_urls,1),0) > 0 OR website IS NOT NULL", persisted=True),
+        nullable=False,
+    )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
