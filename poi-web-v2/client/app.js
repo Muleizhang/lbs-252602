@@ -54,9 +54,17 @@
     cluster = new AMap.MarkerCluster(map, [], {
       gridSize: 60,
       renderMarker: function (ctx) {
-        ctx.marker.setContent('<div style="width:8px;height:8px;background:#ff4d4f;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.3)"></div>');
+        ctx.marker.setContent('<div style="width:12px;height:12px;background:#ff4d4f;border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.3)"></div>');
         ctx.marker.setOffset(new AMap.Pixel(-6, -6));
+        ctx.marker.on('click', function () {
+          showInfo(ctx.data[0].extData);
+        });
       },
+      renderClusterMarker: function (ctx) {
+        var size = Math.min(60, Math.max(30, 20 + ctx.count.toString().length * 10));
+        ctx.marker.setContent('<div style="width:'+size+'px;height:'+size+'px;line-height:'+size+'px;background:rgba(24,144,255,0.8);color:#fff;border-radius:50%;text-align:center;font-size:12px;box-shadow:0 0 8px rgba(0,0,0,.3)">' + ctx.count + '</div>');
+        ctx.marker.setOffset(new AMap.Pixel(-size/2, -size/2));
+      }
     });
 
     map.on('moveend', debounce(loadPoisByView, 300));
@@ -87,20 +95,17 @@
   }
 
   function renderPois(list) {
-    markerList = [];
+    if (!list) return;
+    var data = [];
     for (var i = 0; i < list.length; i++) {
       var p = list[i];
       var pos = p.location.gcj02;
-      var m = new AMap.Marker({
-        position: [pos.lng, pos.lat],
-        extData: p,
+      data.push({
+        lnglat: [pos.lng, pos.lat],
+        extData: p
       });
-      (function (poi) {
-        m.on('click', function () { showInfo(poi); });
-      })(p);
-      markerList.push(m);
     }
-    cluster.setMarkers(markerList);
+    cluster.setData(data);
   }
 
   function showInfo(poi) {
