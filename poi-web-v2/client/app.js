@@ -2,6 +2,9 @@
   'use strict';
 
   var CFG = window.LBS_CONFIG;
+  var localKey = localStorage.getItem('lbs_api_key');
+  if (localKey) CFG.API_KEY = localKey;
+
   var debugEl = document.getElementById('debug-log');
   var debugCount = 0;
 
@@ -23,17 +26,25 @@
     var url = CFG.API_BASE + path;
     var headers = { 'Content-Type': 'application/json' };
     if (CFG.API_KEY) headers['X-API-Key'] = CFG.API_KEY;
+    var token = localStorage.getItem('lbs_token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
     var opts = { method: method, headers: headers };
     if (body) opts.body = JSON.stringify(body);
     return fetch(url, opts).then(function (r) {
       return r.text().then(function (txt) {
         var data;
         try { data = JSON.parse(txt); } catch (e) { data = txt; }
-        debugLog(method, url, r.status, data); // 修复了这里：将 path 改成了 url
+        debugLog(method, url, r.status, data);
+        if (r.status === 401 || r.status === 403) {
+          // token 过期或无权限，自动退出
+          if (path !== '/auth/login' && path !== '/auth/register') {
+            doLogout();
+          }
+        }
         return { status: r.status, data: data };
       });
     }).catch(function (err) {
-      debugLog(method, url, 0, err.toString()); // 增加了错误捕获并打印到 debug log
+      debugLog(method, url, 0, err.toString());
       return { status: 0, data: null };
     });
   }
@@ -396,5 +407,247 @@
     debugEl.innerHTML = '';
     debugCount = 0;
   };
+
+  // ===================== Auth System =====================
+
+  var currentUser = null;
+  var authMode = 'login';
+
+  var modalAuth = document.getElementById('modal-auth');
+  var modalProfile = document.getElementById('modal-profile');
+  var authTitle = document.getElementById('auth-title');
+  var authUser = document.getElementById('auth-user');
+  var authPass = document.getElementById('auth-pass');
+  var authEmail = document.getElementById('auth-email');
+  var authToggle = document.getElementById('auth-toggle');
+  var authSubmit = document.getElementById('btn-auth-submit');
+  var userInfo = document.getElementById('user-info');
+  var btnLoginShow = document.getElementById('btn-login-show');
+  var btnProfile = document.getElementById('btn-profile');
+  var btnLogout = document.getElementById('btn-logout');
+
+  function updateAuthUI() {
+    if (currentUser) {
+      userInfo.textContent = currentUser.username + ' (' + currentUser.role + ')';
+      userInfo.style.display = 'inline';
+      btnLoginShow.style.display = 'none';
+      btnProfile.style.display = 'inline-block';
+      btnLogout.style.display = 'inline-block';
+    } else {
+      userInfo.style.display = 'none';
+      btnLoginShow.style.display = 'inline-block';
+      btnProfile.style.display = 'none';
+      btnLogout.style.display = 'none';
+    }
+  }
+
+  function doLogout() {
+    currentUser = null;
+    localStorage.removeItem('lbs_token');
+    localStorage.removeItem('lbs_user');
+    localStorage.removeItem('lbs_api_key');
+    CFG.API_KEY = '';
+    updateAuthUI();
+  }
+
+  function tryRestoreSession() {
+    var token = localStorage.getItem('lbs_token');
+    var savedUser = localStorage.getItem('lbs_user');
+    if (token && savedUser) {
+      try {
+        currentUser = JSON.parse(savedUser);
+        updateAuthUI();
+        api('POST', '/auth/refresh', null).then(function (r) {
+          if (r.status === 200 && r.data && r.data.code === 0) {
+            localStorage.setItem('lbs_token', r.data.data.access_token);
+          } else {
+            doLogout();
+          }
+        });
+      } catch (e) {
+        doLogout();
+      }
+    } else {
+      updateAuthUI();
+    }
+  }
+
+  authToggle.addEventListener('click', function () {
+    if (authMode === 'login') {
+      authMode = 'register';
+      authTitle.textContent = '用户注册';
+      authEmail.style.display = 'block';
+      authToggle.textContent = '已有账号？去登录';
+    } else {
+      authMode = 'login';
+      authTitle.textContent = '用户登录';
+      authEmail.style.display = 'none';
+      authToggle.textContent = '没有账号？去注册';
+    }
+  });
+
+  btnLoginShow.addEventListener('click', function () {
+    authUser.value = '';
+    authPass.value = '';
+    authEmail.value = '';
+    authMode = 'login';
+    authTitle.textContent = '用户登录';
+    authEmail.style.display = 'none';
+    authToggle.textContent = '没有账号？去注册';
+    modalAuth.style.display = 'flex';
+  });
+
+  authSubmit.addEventListener('click', function () {
+    var u = authUser.value.trim();
+    var p = authPass.value;
+    if (!u || !p) return;
+
+    if (authMode === 'login') {
+      api('POST', '/auth/login', { username: u, password: p }).then(function (r) {
+        if (r.status === 200 && r.data && r.data.code === 0) {
+          var token = r.data.data.access_token;
+          localStorage.setItem('lbs_token', token);
+          modalAuth.style.display = 'none';
+          api('GET', '/users/me', null).then(function (r2) {
+            if (r2.status === 200 && r2.data && r2.data.code === 0) {
+              currentUser = r2.data.data;
+              localStorage.setItem('lbs_user', JSON.stringify(currentUser));
+              updateAuthUI();
+            }
+          });
+        }
+      });
+    } else {
+      var e = authEmail.value.trim();
+      if (!e) return;
+      api('POST', '/auth/register', { username: u, email: e, password: p }).then(function (r) {
+        if (r.status === 200 && r.data && r.data.code === 0) {
+          api('POST', '/auth/login', { username: u, password: p }).then(function (r2) {
+            if (r2.status === 200 && r2.data && r2.data.code === 0) {
+              var token = r2.data.data.access_token;
+              localStorage.setItem('lbs_token', token);
+              modalAuth.style.display = 'none';
+              api('GET', '/users/me', null).then(function (r3) {
+                if (r3.status === 200 && r3.data && r3.data.code === 0) {
+                  currentUser = r3.data.data;
+                  localStorage.setItem('lbs_user', JSON.stringify(currentUser));
+                  updateAuthUI();
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+  });
+
+  btnLogout.addEventListener('click', function () {
+    doLogout();
+  });
+
+  // ===================== Profile & API Key Management =====================
+
+  var profUser = document.getElementById('prof-user');
+  var profRole = document.getElementById('prof-role');
+  var keyList = document.getElementById('key-list');
+  var newKeyName = document.getElementById('new-key-name');
+  var btnCreateKey = document.getElementById('btn-create-key');
+
+  btnProfile.addEventListener('click', function () {
+    if (!currentUser) return;
+    profUser.textContent = currentUser.username;
+    profRole.textContent = currentUser.role;
+    newKeyName.value = '';
+    modalProfile.style.display = 'flex';
+    loadApiKeys();
+  });
+
+  function loadApiKeys() {
+    api('GET', '/users/me/apikeys', null).then(function (r) {
+      keyList.innerHTML = '';
+      if (r.status === 200 && r.data && r.data.code === 0) {
+        var keys = r.data.data;
+        for (var i = 0; i < keys.length; i++) {
+          var k = keys[i];
+          var item = document.createElement('div');
+          item.className = 'key-item';
+          var statusText = k.is_active ? '✅ 有效' : '❌ 已吊销';
+          item.innerHTML = '<div><b>' + k.key_prefix + '****</b> ' + (k.name || '') + '<br><span style="color:#888">' + statusText + ' | 最后使用: ' + (k.last_used_at || '从未') + '</span></div>';
+          if (k.is_active) {
+            var useBtn = document.createElement('button');
+            useBtn.textContent = '使用';
+            useBtn.style.cssText = 'padding:2px 8px;font-size:11px;margin-right:4px;';
+            useBtn.addEventListener('click', function () {
+              var existing = keyList.querySelector('.use-key-box');
+              if (existing) existing.remove();
+              var box = document.createElement('div');
+              box.className = 'use-key-box';
+              box.style.cssText = 'margin-top:4px;padding:6px;background:#e6f7ff;border:1px solid #91d5ff;border-radius:3px;display:flex;gap:6px;align-items:center;';
+              box.innerHTML = '<input type="text" placeholder="粘贴完整的 API Key (sk_...)" style="flex:1;padding:3px;font-size:12px;border:1px solid #d9d9d9;border-radius:3px;">' +
+                '<button style="padding:3px 8px;font-size:12px;">确认</button>';
+              item.appendChild(box);
+              var inp = box.querySelector('input');
+              var confirmBtn = box.querySelector('button');
+              confirmBtn.addEventListener('click', function () {
+                var fullKey = inp.value.trim();
+                if (!fullKey) return;
+                CFG.API_KEY = fullKey;
+                localStorage.setItem('lbs_api_key', fullKey);
+                box.innerHTML = '<span style="color:#52c41a;font-size:12px;">已设置: ' + fullKey.substring(0, 12) + '****</span>';
+              });
+            });
+            var revokeBtn = document.createElement('button');
+            revokeBtn.textContent = '吊销';
+            revokeBtn.style.cssText = 'padding:2px 8px;font-size:11px;background:#ff4d4f;';
+            (function (kId) {
+              revokeBtn.addEventListener('click', function () {
+                if (!confirm('确定吊销此 Key？吊销后不可恢复。')) return;
+                api('DELETE', '/users/me/apikeys/' + kId, null).then(function () {
+                  loadApiKeys();
+                });
+              });
+            })(k.id);
+            var btnGroup = document.createElement('div');
+            btnGroup.appendChild(useBtn);
+            btnGroup.appendChild(revokeBtn);
+            item.appendChild(btnGroup);
+          }
+          keyList.appendChild(item);
+        }
+        if (keys.length === 0) {
+          keyList.innerHTML = '<div style="padding:12px;color:#888;text-align:center;">暂无 API Key，请点击上方按钮生成</div>';
+        }
+      }
+    });
+  }
+
+  btnCreateKey.addEventListener('click', function () {
+    var name = newKeyName.value.trim() || '默认 Key';
+    api('POST', '/users/me/apikeys', { name: name }).then(function (r) {
+      if (r.status === 200 && r.data && r.data.code === 0) {
+        var plain = r.data.data.key_plain;
+        CFG.API_KEY = plain;
+        localStorage.setItem('lbs_api_key', plain);
+
+        var box = document.createElement('div');
+        box.style.cssText = 'margin-top:8px;padding:8px;background:#fffbe6;border:1px solid #ffe58f;border-radius:4px;';
+        box.innerHTML = '<div style="color:#d48806;font-size:12px;margin-bottom:4px;">新 Key 已生成并自动启用，请立即复制保存（关闭后无法再查看完整 Key）：</div>' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<input readonly style="flex:1;padding:4px;font-size:12px;border:1px solid #d9d9d9;border-radius:3px;" value="' + plain + '">' +
+          '<button id="btn-copy-key" style="padding:4px 10px;font-size:12px;white-space:nowrap;">复制</button>' +
+          '</div>';
+        keyList.insertBefore(box, keyList.firstChild);
+        var inp = box.querySelector('input');
+        inp.select();
+        box.querySelector('#btn-copy-key').addEventListener('click', function () {
+          inp.select();
+          document.execCommand('copy');
+          this.textContent = '已复制!';
+        });
+      }
+    });
+  });
+
+  tryRestoreSession();
 
 })();

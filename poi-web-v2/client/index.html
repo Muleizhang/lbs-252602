@@ -20,6 +20,11 @@
         <button id="btn-rect">拉框查询</button>
         <button id="btn-radius">半径查询</button>
         <button id="btn-clear">重置</button>
+        <span style="border-left: 1px solid #ccc; height: 16px; margin: 0 4px;"></span>
+        <span id="user-info" style="color: #1890ff; font-weight: bold; display: none;"></span>
+        <button id="btn-login-show">登录 / 注册</button>
+        <button id="btn-profile" style="display:none;">🔑 API Keys</button>
+        <button id="btn-logout" style="display:none;">退出</button>
       </div>
       <div id="info-window"></div>
     </div>
@@ -29,6 +34,41 @@
         <button onclick="clearDebug()">Clear</button>
       </div>
       <div id="debug-log"></div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div id="modal-auth" class="modal">
+    <div class="modal-content">
+      <h3 id="auth-title" style="margin-bottom:12px;">用户登录</h3>
+      <input id="auth-user" type="text" placeholder="用户名" style="width:100%; margin-bottom:8px; padding:6px;">
+      <input id="auth-pass" type="password" placeholder="密码" style="width:100%; margin-bottom:8px; padding:6px;">
+      <input id="auth-email" type="email" placeholder="邮箱 (仅注册需要)" style="width:100%; margin-bottom:8px; padding:6px; display:none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+        <a href="javascript:void(0)" id="auth-toggle" style="font-size:12px; color:#1890ff; text-decoration:none;">没有账号？去注册</a>
+        <div>
+          <button class="cancel" onclick="document.getElementById('modal-auth').style.display='none'">取消</button>
+          <button id="btn-auth-submit">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-profile" class="modal">
+    <div class="modal-content" style="width:500px; max-width:90%;">
+      <h3 style="margin-bottom:12px;">我的 API Keys</h3>
+      <div style="background:#f5f5f5; padding:8px; margin-bottom:12px; border-radius:4px; font-size:12px;">
+        当前用户：<b id="prof-user"></b> | 角色：<b id="prof-role"></b><br>
+        <span style="color:#888;">注意：必须拥有有效的 API Key 才能检索。新生成的 Key 会自动在本地生效。</span>
+      </div>
+      <div style="margin-bottom:8px; text-align:right;">
+        <input id="new-key-name" type="text" placeholder="Key 备注名称" style="padding:4px; width:120px;">
+        <button id="btn-create-key">生成新 Key</button>
+      </div>
+      <div id="key-list" style="max-height:200px; overflow-y:auto; border:1px solid #eee; padding:4px;"></div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="cancel" onclick="document.getElementById('modal-profile').style.display='none'">关闭</button>
+      </div>
     </div>
   </div>
 
