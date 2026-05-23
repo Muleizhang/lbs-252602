@@ -40,9 +40,39 @@
 
   function apiGet(path) { return api('GET', path); }
 
+  function fetchAllPages(basePath, baseParams, onComplete) {
+    var allData = [];
+    var size = 100;
+    
+    function fetchPage(page) {
+      var url = basePath + baseParams + '&page=' + page + '&size=' + size;
+      apiGet(url).then(function (r) {
+        if (r.status === 200 && r.data && r.data.code === 0) {
+          var list = r.data.data;
+          allData = allData.concat(list);
+          var meta = r.data.meta;
+          // 如果当前获取到的数据使得总数还没达到后端告知的 total，并且确实拿到了数据，则继续取下一页
+          if (meta && allData.length < meta.total && list.length > 0) {
+            fetchPage(page + 1);
+          } else {
+            // 所有页都取完了（或者没数据了）
+            onComplete(allData);
+          }
+        } else {
+          // 发生错误时，把已经拿到的数据渲染出来，避免卡死
+          onComplete(allData);
+        }
+      });
+    }
+
+    // 从第一页开始取
+    fetchPage(1);
+  }
+
   var map, markerList = [];
   var geoMarker, geoCircle;
-  var mouseTool, radiusMarker;
+  var mouseTool;
+  var searchOverlay = null;
   var infoWin = document.getElementById('info-window');
 
   window._mapInit = function () {
@@ -139,11 +169,7 @@
       if (status === 'complete') updateGeoMarker(result.position);
     });
 
-    setInterval(function () {
-      geolocation.getCurrentPosition(function (status, result) {
-        if (status === 'complete') updateGeoMarker(result.position);
-      });
-    }, 30000);
+    // 移除了定时器，不再每隔 30 秒把地图中心切回我的位置
   }
 
   function updateGeoMarker(pos) {
@@ -205,63 +231,92 @@
     }
 
     btnSearch.addEventListener('click', function () {
-      var params = '?size=100';
+      var params = '?';
+      var query = [];
       var v;
-      v = selProv.value; if (v) params += '&province=' + encodeURIComponent(v);
-      v = selCat.value; if (v) params += '&category=' + encodeURIComponent(v);
-      v = selBatch.value; if (v) params += '&batch=' + v;
-      v = txtName.value.trim(); if (v) params += '&name=' + encodeURIComponent(v);
-      apiGet('/pois' + params).then(function (r) {
-        if (r.status === 200 && r.data.code === 0) renderPois(r.data.data);
+      v = selProv.value; if (v) query.push('province=' + encodeURIComponent(v));
+      v = selCat.value; if (v) query.push('category=' + encodeURIComponent(v));
+      v = selBatch.value; if (v) query.push('batch=' + v);
+      v = txtName.value.trim(); if (v) query.push('name=' + encodeURIComponent(v));
+      params += query.join('&');
+      
+      fetchAllPages('/pois', params, function(allData) {
+        renderPois(allData);
       });
     });
 
     var rectActive = false;
+    var radiusActive = false;
+
+    function clearSearchOverlay() {
+      if (searchOverlay) {
+        map.remove(searchOverlay);
+        searchOverlay = null;
+      }
+      if (mouseTool) {
+        mouseTool.close(true); // true 表示同时清除绘制的图形
+        mouseTool = null;
+      }
+      btnRect.classList.remove('active');
+      btnRadius.classList.remove('active');
+      rectActive = false;
+      radiusActive = false;
+    }
+
     btnRect.addEventListener('click', function () {
-      if (rectActive) return;
+      if (rectActive) { clearSearchOverlay(); return; }
+      clearSearchOverlay();
       rectActive = true;
       btnRect.classList.add('active');
+      
       mouseTool = new AMap.MouseTool(map);
       mouseTool.rectangle({ strokeColor: '#1890ff', fillColor: '#1890ff', fillOpacity: 0.1 });
       mouseTool.on('draw', function (e) {
+        searchOverlay = e.obj;
         var bounds = e.obj.getBounds();
         var sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
         var params = '?minLng=' + sw.lng + '&minLat=' + sw.lat +
-                     '&maxLng=' + ne.lng + '&maxLat=' + ne.lat + '&size=100';
-        apiGet('/pois/search/bbox' + params).then(function (r) {
-          if (r.status === 200 && r.data.code === 0) renderPois(r.data.data);
+                     '&maxLng=' + ne.lng + '&maxLat=' + ne.lat;
+        
+        fetchAllPages('/pois/search/bbox', params, function(allData) {
+          renderPois(allData);
         });
-        mouseTool.close();
+
+        var obj = e.obj;
+        mouseTool.close(false); // 关闭测距工具，false 表示保留图形
+        searchOverlay = obj; // 重新赋值覆盖物引用，因为 close 后可能丢失
+        
         btnRect.classList.remove('active');
         rectActive = false;
       });
     });
 
     btnRadius.addEventListener('click', function () {
-      var r = prompt('请输入查询半径（米）：', '5000');
-      if (!r || isNaN(r)) return;
-      radiusMarker = parseFloat(r);
-      map.setDefaultCursor('crosshair');
-      var handler = function (e) {
-        var lnglat = e.lnglat;
-        var params = '?lng=' + lnglat.getLng() + '&lat=' + lnglat.getLat() +
-                     '&radius=' + radiusMarker + '&size=100';
-        apiGet('/pois/search/radius' + params).then(function (res) {
-          if (res.status === 200 && res.data.code === 0) {
-            renderPois(res.data.data);
-            new AMap.Circle({
-              map: map,
-              center: [lnglat.getLng(), lnglat.getLat()],
-              radius: radiusMarker,
-              strokeColor: '#f5222d', strokeWeight: 2,
-              fillColor: '#f5222d', fillOpacity: 0.08,
-            });
-          }
+      if (radiusActive) { clearSearchOverlay(); return; }
+      clearSearchOverlay();
+      radiusActive = true;
+      btnRadius.classList.add('active');
+      
+      mouseTool = new AMap.MouseTool(map);
+      mouseTool.circle({ strokeColor: '#f5222d', fillColor: '#f5222d', fillOpacity: 0.1 });
+      mouseTool.on('draw', function (e) {
+        searchOverlay = e.obj;
+        var center = e.obj.getCenter();
+        var radius = e.obj.getRadius();
+        var params = '?lng=' + center.lng + '&lat=' + center.lat +
+                     '&radius=' + Math.round(radius);
+        
+        fetchAllPages('/pois/search/radius', params, function(allData) {
+          renderPois(allData);
         });
-        map.setDefaultCursor('default');
-        map.off('click', handler);
-      };
-      map.on('click', handler);
+
+        var obj = e.obj;
+        mouseTool.close(false); // 关闭测距工具，false 表示保留图形
+        searchOverlay = obj; // 重新赋值覆盖物引用，因为 close 后可能丢失
+        
+        btnRadius.classList.remove('active');
+        radiusActive = false;
+      });
     });
 
     btnClear.addEventListener('click', function () {
@@ -271,6 +326,7 @@
       txtName.value = '';
       if (markerList.length) map.remove(markerList);
       markerList = [];
+      clearSearchOverlay();
     });
   }
 
