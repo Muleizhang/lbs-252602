@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>全国文保单位 POI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div style="flex:1;position:relative;">
+      <div id="map-container"></div>
+      <div id="toolbar">
+        <select id="sel-province"><option value="">全部省份</option></select>
+        <select id="sel-category"><option value="">全部类别</option></select>
+        <select id="sel-batch"><option value="">全部批次</option></select>
+        <input id="txt-name" type="text" placeholder="关键词">
+        <button id="btn-search">搜索</button>
+        <button id="btn-rect">拉框查询</button>
+        <button id="btn-radius">半径查询</button>
+        <button id="btn-clear">重置</button>
+      </div>
+      <div id="info-window"></div>
+    </div>
+    <div id="debug-panel">
+      <div class="header">
+        <span>API Debug</span>
+        <button onclick="clearDebug()">Clear</button>
+      </div>
+      <div id="debug-log"></div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    window._AMapSecurityConfig = { securityJsCode: window.LBS_CONFIG.AMAP_SECURITY_JS_CODE };
+  </script>
+  <script src="https://webapi.amap.com/maps?v=2.0&key=108142b723aa6342db9bdf29a1e8f20d&plugin=AMap.Geolocation,AMap.MarkerCluster,AMap.MouseTool"></script>
+  <script src="app.js"></script>
+  <script>window._mapInit();</script>
+</body>
+</html>
