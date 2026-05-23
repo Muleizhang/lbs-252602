@@ -1,4 +1,5 @@
 from typing import Annotated
+from datetime import datetime, timezone
 
 from fastapi import Depends, Header
 from sqlalchemy import select
@@ -6,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import async_session
 from app.errors import BizError, ErrorCode
-from app.models import User
-from app.utils.security import decode_access_token
+from app.models import ApiKey, User
+from app.utils.security import decode_access_token, verify_password
 
 
 async def get_db():
@@ -52,3 +53,26 @@ async def require_admin(user: CurrentUser) -> User:
 
 
 AdminUser = Annotated[User, Depends(require_admin)]
+
+
+async def apikey_auth(
+    db: DbSession,
+    x_api_key: str = Header(..., alias="X-API-Key"),
+) -> User:
+    prefix = x_api_key[:8]
+    result = await db.execute(
+        select(ApiKey).where(ApiKey.key_prefix == prefix, ApiKey.is_active.is_(True))
+    )
+    candidates = result.scalars().all()
+    for ak in candidates:
+        if verify_password(x_api_key, ak.key_hash):
+            ak.last_used_at = datetime.now(timezone.utc)
+            await db.commit()
+            result2 = await db.execute(select(User).where(User.id == ak.user_id))
+            user = result2.scalar_one_or_none()
+            if user and user.is_active:
+                return user
+    raise BizError(ErrorCode.APIKEY_INVALID)
+
+
+ApiKeyUser = Annotated[User, Depends(apikey_auth)]

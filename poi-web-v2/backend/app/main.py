@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.errors import BizError, ErrorCode, ERROR_META, trace_id
 from app.schemas.response import ok, fail
-from app.routers import auth
+from app.routers import auth, users
 
 logger = logging.getLogger("app")
 
@@ -72,6 +72,7 @@ async def generic_error_handler(request: Request, exc: Exception):
 
 
 app.include_router(auth.router)
+app.include_router(users.router)
 
 
 @app.get("/healthz")
