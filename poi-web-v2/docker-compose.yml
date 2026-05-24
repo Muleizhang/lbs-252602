@@ -2,13 +2,41 @@ services:
   db:
     image: postgis/postgis:16-3.4
     environment:
-      POSTGRES_DB: lbs
-      POSTGRES_USER: lbs
+      POSTGRES_DB: ${DB_NAME:-lbs}
+      POSTGRES_USER: ${DB_USER:-lbs}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-lbs_dev_2026}
-    ports:
-      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lbs}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-lbs}:${DB_PASSWORD:-lbs_dev_2026}@db:5432/${DB_NAME:-lbs}
+      DATABASE_URL_SYNC: postgresql://${DB_USER:-lbs}:${DB_PASSWORD:-lbs_dev_2026}@db:5432/${DB_NAME:-lbs}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["*"]}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./client:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
     restart: unless-stopped
 
 volumes:
