@@ -1,5 +1,7 @@
 import argparse
+import os
 import re
+import sys
 
 import geopandas as gpd
 import pandas as pd
@@ -75,7 +77,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Path to .shp file")
     parser.add_argument("--truncate", action="store_true", help="TRUNCATE pois before import")
+    parser.add_argument("--db-url", default=None, help="Database URL (default: from DATABASE_URL_SYNC env var)")
     args = parser.parse_args()
+
+    db_url = args.db_url or os.environ.get("DATABASE_URL_SYNC")
+    if not db_url:
+        print("Error: --db-url or DATABASE_URL_SYNC env var required", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Reading {args.input} ...")
     gdf = gpd.read_file(args.input)
@@ -108,7 +116,6 @@ def main():
     print(f"  Batches: {df['batch'].value_counts().to_dict()}")
     print(f"  Provinces: {df['province'].nunique()} unique")
 
-    db_url = "postgresql://lbs:lbs_dev_2026@localhost:5433/lbs"
     engine = create_engine(db_url)
 
     if args.truncate:
