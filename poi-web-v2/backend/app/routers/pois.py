@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, Request
 from sqlalchemy import select, func, text
 from sqlalchemy.orm import selectinload
 
-from app.deps import DbSession, AdminUser, ApiKeyUser
+from app.deps import DbSession, AdminUser, ApiKeyUser, ApiKeyOrAdminUser
 from app.errors import BizError, ErrorCode
 from app.models import Poi, POI_CATEGORIES
 from app.schemas.poi import PoiCreateReq, PoiUpdateReq, PoiOut, LocationOut
@@ -111,7 +111,7 @@ async def delete_poi(poi_id: str, _admin: AdminUser, db: DbSession):
 @limiter.limit("60/minute")
 async def list_pois(
     request: Request,
-    _user: ApiKeyUser,
+    _user: ApiKeyOrAdminUser,
     db: DbSession,
     name: str | None = Query(None),
     province: str | None = Query(None),
@@ -155,7 +155,7 @@ async def list_pois(
 @limiter.limit("60/minute")
 async def search_bbox(
     request: Request,
-    _user: ApiKeyUser,
+    _user: ApiKeyOrAdminUser,
     db: DbSession,
     minLng: float = Query(...),
     minLat: float = Query(...),
@@ -194,7 +194,7 @@ async def search_bbox(
 @limiter.limit("60/minute")
 async def search_radius(
     request: Request,
-    _user: ApiKeyUser,
+    _user: ApiKeyOrAdminUser,
     db: DbSession,
     lng: float = Query(...),
     lat: float = Query(...),
@@ -229,7 +229,7 @@ async def search_radius(
 
 @router.get("/{poi_id}")
 @limiter.limit("60/minute")
-async def get_poi(request: Request, poi_id: str, _user: ApiKeyUser, db: DbSession):
+async def get_poi(request: Request, poi_id: str, _user: ApiKeyOrAdminUser, db: DbSession):
     result = await db.execute(select(Poi).where(Poi.id == poi_id))
     poi = result.scalar_one_or_none()
     if not poi:

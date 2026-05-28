@@ -36,9 +36,9 @@
         try { data = JSON.parse(txt); } catch (e) { data = txt; }
         debugLog(method, url, r.status, data);
         if (r.status === 401 || r.status === 403) {
-          // token 过期或无权限，自动退出
           if (path !== '/auth/login' && path !== '/auth/register') {
-            doLogout();
+            var isAdmin = currentUser && currentUser.role === 'admin';
+            if (!isAdmin && !localStorage.getItem('lbs_token')) doLogout();
           }
         }
         return { status: r.status, data: data };

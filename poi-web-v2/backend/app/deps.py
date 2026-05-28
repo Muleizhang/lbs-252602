@@ -1,7 +1,7 @@
 from typing import Annotated
 from datetime import datetime, timezone
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,3 +76,39 @@ async def apikey_auth(
 
 
 ApiKeyUser = Annotated[User, Depends(apikey_auth)]
+
+
+async def apikey_or_admin(
+    request: Request,
+    db: DbSession,
+) -> User:
+    """鉴权：管理员 Bearer token 或 API Key，二选一。管理员无需 API Key。"""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            user = await _extract_user(auth_header, db)
+            if user.role == "admin":
+                return user
+        except Exception:
+            pass
+
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key:
+        prefix = api_key[:8]
+        result = await db.execute(
+            select(ApiKey).where(ApiKey.key_prefix == prefix, ApiKey.is_active.is_(True))
+        )
+        candidates = result.scalars().all()
+        for ak in candidates:
+            if verify_password(api_key, ak.key_hash):
+                ak.last_used_at = datetime.now(timezone.utc)
+                await db.commit()
+                result2 = await db.execute(select(User).where(User.id == ak.user_id))
+                user = result2.scalar_one_or_none()
+                if user and user.is_active:
+                    return user
+
+    raise BizError(ErrorCode.APIKEY_INVALID)
+
+
+ApiKeyOrAdminUser = Annotated[User, Depends(apikey_or_admin)]
