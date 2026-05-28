@@ -178,10 +178,20 @@
       style: dotStyles
     });
 
+    var hideTimer = null;
+
     massMarks.on('mouseover', function (e) {
+      clearTimeout(hideTimer);
       showInfo(e.data.extData);
     });
     massMarks.on('mouseout', function () {
+      hideTimer = setTimeout(function () { infoWin.style.display = 'none'; }, 200);
+    });
+
+    infoWin.addEventListener('mouseenter', function () {
+      clearTimeout(hideTimer);
+    });
+    infoWin.addEventListener('mouseleave', function () {
       infoWin.style.display = 'none';
     });
 
