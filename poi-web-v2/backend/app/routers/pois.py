@@ -38,6 +38,7 @@ def _poi_out(p: Poi) -> dict:
         description=p.description,
         image_urls=p.image_urls or [],
         website=p.website,
+        baike_url=p.baike_url,
         has_extended=p.has_extended,
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat(),
@@ -63,6 +64,7 @@ async def create_poi(body: PoiCreateReq, _admin: AdminUser, db: DbSession):
         description=body.description,
         image_urls=body.image_urls or [],
         website=body.website,
+        baike_url=body.baike_url,
     )
     db.add(poi)
     await db.commit()

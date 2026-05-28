@@ -15,6 +15,7 @@ class PoiCreateReq(BaseModel):
     description: str | None = None
     image_urls: list[str] | None = None
     website: str | None = None
+    baike_url: str | None = None
 
 
 class PoiUpdateReq(BaseModel):
@@ -31,6 +32,7 @@ class PoiUpdateReq(BaseModel):
     description: str | None = None
     image_urls: list[str] | None = None
     website: str | None = None
+    baike_url: str | None = None
 
 
 class LocationOut(BaseModel):
@@ -52,6 +54,7 @@ class PoiOut(BaseModel):
     description: str | None
     image_urls: list[str]
     website: str | None
+    baike_url: str | None
     has_extended: bool
     created_at: str
     updated_at: str

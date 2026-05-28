@@ -3,9 +3,14 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import os
+
 from app.models import Base
 
 config = context.config
+_db_url_sync = os.environ.get("DATABASE_URL_SYNC")
+if _db_url_sync:
+    config.set_main_option("sqlalchemy.url", _db_url_sync)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

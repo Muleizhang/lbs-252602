@@ -210,6 +210,9 @@
         html += '</div>';
       }
     }
+    if (poi.baike_url) {
+      html += '<div class="wiki-frame"><iframe src="' + poi.baike_url + '" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe></div>';
+    }
     infoWin.innerHTML = html;
     infoWin.style.display = 'block';
     var px = map.lngLatToContainer(new AMap.LngLat(loc.gcj02.lng, loc.gcj02.lat));
@@ -550,6 +553,7 @@
   var profUser = document.getElementById('prof-user');
   var profRole = document.getElementById('prof-role');
   var keyList = document.getElementById('key-list');
+  var newKeyDisplay = document.getElementById('new-key-display');
   var newKeyName = document.getElementById('new-key-name');
   var btnCreateKey = document.getElementById('btn-create-key');
 
@@ -558,6 +562,8 @@
     profUser.textContent = currentUser.username;
     profRole.textContent = currentUser.role;
     newKeyName.value = '';
+    newKeyDisplay.style.display = 'none';
+    newKeyDisplay.innerHTML = '';
     modalProfile.style.display = 'flex';
     loadApiKeys();
   });
@@ -567,52 +573,61 @@
       keyList.innerHTML = '';
       if (r.status === 200 && r.data && r.data.code === 0) {
         var keys = r.data.data;
+        var currentPrefix = CFG.API_KEY ? CFG.API_KEY.substring(0, 8) : '';
         for (var i = 0; i < keys.length; i++) {
-          var k = keys[i];
-          var item = document.createElement('div');
-          item.className = 'key-item';
-          var statusText = k.is_active ? '✅ 有效' : '❌ 已吊销';
-          item.innerHTML = '<div><b>' + k.key_prefix + '****</b> ' + (k.name || '') + '<br><span style="color:#888">' + statusText + ' | 最后使用: ' + (k.last_used_at || '从未') + '</span></div>';
-          if (k.is_active) {
-            var useBtn = document.createElement('button');
-            useBtn.textContent = '使用';
-            useBtn.style.cssText = 'padding:2px 8px;font-size:11px;margin-right:4px;';
-            useBtn.addEventListener('click', function () {
-              var existing = keyList.querySelector('.use-key-box');
-              if (existing) existing.remove();
-              var box = document.createElement('div');
-              box.className = 'use-key-box';
-              box.style.cssText = 'margin-top:4px;padding:6px;background:#e6f7ff;border:1px solid #91d5ff;border-radius:3px;display:flex;gap:6px;align-items:center;';
-              box.innerHTML = '<input type="text" placeholder="粘贴完整的 API Key (sk_...)" style="flex:1;padding:3px;font-size:12px;border:1px solid #d9d9d9;border-radius:3px;">' +
-                '<button style="padding:3px 8px;font-size:12px;">确认</button>';
-              item.appendChild(box);
-              var inp = box.querySelector('input');
-              var confirmBtn = box.querySelector('button');
-              confirmBtn.addEventListener('click', function () {
-                var fullKey = inp.value.trim();
-                if (!fullKey) return;
-                CFG.API_KEY = fullKey;
-                localStorage.setItem('lbs_api_key', fullKey);
-                box.innerHTML = '<span style="color:#52c41a;font-size:12px;">已设置: ' + fullKey.substring(0, 12) + '****</span>';
-              });
-            });
-            var revokeBtn = document.createElement('button');
-            revokeBtn.textContent = '吊销';
-            revokeBtn.style.cssText = 'padding:2px 8px;font-size:11px;background:#ff4d4f;';
-            (function (kId) {
-              revokeBtn.addEventListener('click', function () {
+          (function (k) {
+            var item = document.createElement('div');
+            item.className = 'key-item';
+            var isActive = currentPrefix === k.key_prefix;
+            var statusText = !k.is_active ? '❌ 已吊销' : (isActive ? '🟢 使用中' : '✅ 有效');
+            var infoDiv = document.createElement('div');
+            infoDiv.innerHTML = '<b>' + k.key_prefix + '****</b> ' + (k.name || '')
+              + ' <span style="color:#888;font-size:12px;">' + statusText + ' | 最后使用: ' + (k.last_used_at || '从未') + '</span>';
+            item.appendChild(infoDiv);
+            if (k.is_active) {
+              var btnGroup = document.createElement('div');
+              btnGroup.style.cssText = 'margin-top:4px;';
+              if (!isActive) {
+                var useBtn = document.createElement('button');
+                useBtn.textContent = '切换使用';
+                useBtn.style.cssText = 'padding:2px 8px;font-size:11px;margin-right:4px;';
+                useBtn.addEventListener('click', function (e) {
+                  e.stopPropagation();
+                  var existing = keyList.querySelector('.use-key-box');
+                  if (existing) existing.remove();
+                  var box = document.createElement('div');
+                  box.className = 'use-key-box';
+                  box.style.cssText = 'margin-top:4px;padding:6px;background:#e6f7ff;border:1px solid #91d5ff;border-radius:3px;display:flex;gap:6px;align-items:center;';
+                  box.innerHTML = '<input type="text" placeholder="粘贴完整的 API Key (sk_...)" style="flex:1;padding:3px;font-size:12px;border:1px solid #d9d9d9;border-radius:3px;">'
+                    + '<button class="use-key-confirm" style="padding:3px 8px;font-size:12px;">确认</button>';
+                  item.appendChild(box);
+                  var inp = box.querySelector('input');
+                  inp.focus();
+                  box.querySelector('.use-key-confirm').addEventListener('click', function () {
+                    var fullKey = inp.value.trim();
+                    if (!fullKey) return;
+                    CFG.API_KEY = fullKey;
+                    localStorage.setItem('lbs_api_key', fullKey);
+                    loadApiKeys();
+                  });
+                });
+                btnGroup.appendChild(useBtn);
+              }
+              var revokeBtn = document.createElement('button');
+              revokeBtn.textContent = '吊销';
+              revokeBtn.style.cssText = 'padding:2px 8px;font-size:11px;background:#ff4d4f;';
+              revokeBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
                 if (!confirm('确定吊销此 Key？吊销后不可恢复。')) return;
-                api('DELETE', '/users/me/apikeys/' + kId, null).then(function () {
+                api('DELETE', '/users/me/apikeys/' + k.id, null).then(function () {
                   loadApiKeys();
                 });
               });
-            })(k.id);
-            var btnGroup = document.createElement('div');
-            btnGroup.appendChild(useBtn);
-            btnGroup.appendChild(revokeBtn);
-            item.appendChild(btnGroup);
-          }
-          keyList.appendChild(item);
+              btnGroup.appendChild(revokeBtn);
+              item.appendChild(btnGroup);
+            }
+            keyList.appendChild(item);
+          })(keys[i]);
         }
         if (keys.length === 0) {
           keyList.innerHTML = '<div style="padding:12px;color:#888;text-align:center;">暂无 API Key，请点击上方按钮生成</div>';
@@ -623,27 +638,36 @@
 
   btnCreateKey.addEventListener('click', function () {
     var name = newKeyName.value.trim() || '默认 Key';
+    btnCreateKey.disabled = true;
+    btnCreateKey.textContent = '生成中...';
     api('POST', '/users/me/apikeys', { name: name }).then(function (r) {
+      btnCreateKey.disabled = false;
+      btnCreateKey.textContent = '生成新 Key';
       if (r.status === 200 && r.data && r.data.code === 0) {
         var plain = r.data.data.key_plain;
         CFG.API_KEY = plain;
         localStorage.setItem('lbs_api_key', plain);
+        newKeyName.value = '';
 
-        var box = document.createElement('div');
-        box.style.cssText = 'margin-top:8px;padding:8px;background:#fffbe6;border:1px solid #ffe58f;border-radius:4px;';
-        box.innerHTML = '<div style="color:#d48806;font-size:12px;margin-bottom:4px;">新 Key 已生成并自动启用，请立即复制保存（关闭后无法再查看完整 Key）：</div>' +
-          '<div style="display:flex;align-items:center;gap:6px;">' +
-          '<input readonly style="flex:1;padding:4px;font-size:12px;border:1px solid #d9d9d9;border-radius:3px;" value="' + plain + '">' +
-          '<button id="btn-copy-key" style="padding:4px 10px;font-size:12px;white-space:nowrap;">复制</button>' +
-          '</div>';
-        keyList.insertBefore(box, keyList.firstChild);
-        var inp = box.querySelector('input');
+        newKeyDisplay.style.display = 'block';
+        newKeyDisplay.innerHTML = '<div style="padding:10px;background:#fffbe6;border:1px solid #ffe58f;border-radius:4px;">'
+          + '<div style="color:#d48806;font-size:12px;margin-bottom:6px;">新 Key 已生成并自动启用，请立即复制保存（关闭后无法再查看完整 Key）：</div>'
+          + '<div style="display:flex;align-items:center;gap:6px;">'
+          + '<input id="new-key-inp" readonly style="flex:1;padding:4px;font-size:12px;border:1px solid #d9d9d9;border-radius:3px;font-family:monospace;" value="' + plain + '">'
+          + '<button id="btn-copy-new-key" style="padding:4px 10px;font-size:12px;white-space:nowrap;">复制</button>'
+          + '</div></div>';
+        var inp = document.getElementById('new-key-inp');
         inp.select();
-        box.querySelector('#btn-copy-key').addEventListener('click', function () {
-          inp.select();
-          document.execCommand('copy');
-          this.textContent = '已复制!';
+        document.getElementById('btn-copy-new-key').addEventListener('click', function () {
+          navigator.clipboard.writeText(plain).then(function () {
+            inp.select();
+          }).catch(function () {
+            inp.select();
+            document.execCommand('copy');
+          });
         });
+
+        loadApiKeys();
       }
     });
   });
