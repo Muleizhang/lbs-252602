@@ -55,10 +55,15 @@ def main():
         data = json.load(f)
     print(f"  Entries: {len(data)}")
 
+    name_to_url = {d["name"]: d["baike_url"] for d in data}
+    dupes = len(data) - len(name_to_url)
+    if dupes:
+        print(f"  Duplicate names: {dupes} (last baike_url kept)")
+
     if args.dry_run:
         print("DRY RUN - would update the following entries:")
         for d in data:
-            print(f"  {d['id']} | {d['name']} | {d['baike_url']}")
+            print(f"  {d['name']} -> {d['baike_url']}")
         return
 
     conn_info = parse_db_url(db_url)
@@ -66,14 +71,25 @@ def main():
     conn.autocommit = False
 
     cur = conn.cursor()
-    cur.execute("SELECT id FROM pois")
-    existing = {str(r[0]) for r in cur.fetchall()}
-    cur.close()
-    print(f"  Existing POIs in DB: {len(existing)}")
+    cur.execute("SELECT id, name FROM pois")
+    db_rows = cur.fetchall()
+    print(f"  Existing POIs in DB: {len(db_rows)}")
 
-    matched = [d for d in data if d["id"] in existing]
-    unmatched = len(data) - len(matched)
-    print(f"  Matched: {len(matched)}, Unmatched (not in DB): {unmatched}")
+    id_by_name = {r[1]: str(r[0]) for r in db_rows}
+    dup_db = len(db_rows) - len(id_by_name)
+    if dup_db:
+        print(f"  Duplicate names in DB: {dup_db}")
+
+    matched = []
+    skipped = []
+    for name, url in name_to_url.items():
+        db_id = id_by_name.get(name)
+        if db_id:
+            matched.append((db_id, url))
+        else:
+            skipped.append(name)
+
+    print(f"  Matched: {len(matched)}, Not found in DB: {len(skipped)}")
 
     if not matched:
         print("No entries to update. Exiting.")
@@ -88,9 +104,9 @@ def main():
         batch = matched[i : i + batch_size]
         values_list = []
         params = []
-        for d in batch:
+        for db_id, url in batch:
             values_list.append("(%s::uuid, %s)")
-            params.extend([d["id"], d["baike_url"]])
+            params.extend([db_id, url])
 
         sql = (
             f"UPDATE pois SET baike_url = v.baike_url "
