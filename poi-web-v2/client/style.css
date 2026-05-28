@@ -75,3 +75,15 @@ html, body { height: 100%; font-family: -apple-system, "Microsoft YaHei", sans-s
 .modal-content button:hover { opacity: 0.8; }
 .key-item { border-bottom: 1px solid #eee; padding: 6px 0; font-size: 12px; }
 .key-item:last-child { border-bottom: none; }
+
+.edit-grid { display: grid; grid-template-columns: 80px 1fr; gap: 6px; align-items: start; }
+.edit-grid label { text-align: right; color: #555; font-size: 13px; line-height: 28px; }
+.edit-grid input, .edit-grid select, .edit-grid textarea {
+  width: 100%; padding: 4px 8px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 13px; box-sizing: border-box;
+}
+.edit-grid textarea { resize: vertical; }
+
+.admin-actions { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; display: flex; gap: 6px; }
+.admin-actions button { padding: 3px 10px; font-size: 12px; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; }
+.admin-actions .btn-edit { background: #1890ff; color: #fff; border-color: #1890ff; }
+.admin-actions .btn-del { background: #ff4d4f; color: #fff; border-color: #ff4d4f; }

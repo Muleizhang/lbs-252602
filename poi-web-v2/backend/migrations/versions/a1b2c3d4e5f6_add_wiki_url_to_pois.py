@@ -1,4 +1,4 @@
-"""add wiki_url to pois
+"""add baike_url to pois
 
 Revision ID: a1b2c3d4e5f6
 Revises: 39b141e69075
@@ -16,7 +16,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('pois', sa.Column('wiki_url', sa.Text(), nullable=True))
+    op.add_column('pois', sa.Column('baike_url', sa.Text(), nullable=True))
 
     op.drop_column('pois', 'has_extended')
     op.execute(
@@ -24,7 +24,7 @@ def upgrade() -> None:
         "GENERATED ALWAYS AS ("
         "COALESCE(array_length(image_urls,1),0) > 0 "
         "OR website IS NOT NULL "
-        "OR wiki_url IS NOT NULL"
+        "OR baike_url IS NOT NULL"
         ") STORED"
     )
 
@@ -38,4 +38,4 @@ def downgrade() -> None:
         "OR website IS NOT NULL"
         ") STORED"
     )
-    op.drop_column('pois', 'wiki_url')
+    op.drop_column('pois', 'baike_url')

@@ -25,6 +25,8 @@
         <button id="btn-login-show">登录 / 注册</button>
         <button id="btn-profile" style="display:none;">🔑 API Keys</button>
         <button id="btn-logout" style="display:none;">退出</button>
+        <span style="border-left: 1px solid #ccc; height: 16px; margin: 0 4px;"></span>
+        <button id="btn-debug-toggle" class="active">Debug</button>
       </div>
       <div id="info-window"></div>
     </div>
@@ -69,6 +71,46 @@
       <div id="key-list" style="max-height:260px; overflow-y:auto; border:1px solid #eee; padding:4px;"></div>
       <div style="text-align:right; margin-top:12px;">
         <button class="cancel" onclick="document.getElementById('modal-profile').style.display='none'">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-edit-poi" class="modal">
+    <div class="modal-content" style="width:540px; max-width:92%;">
+      <h3 id="edit-poi-title" style="margin-bottom:12px;">编辑 POI</h3>
+      <input type="hidden" id="edit-poi-id">
+      <div class="edit-grid">
+        <label>名称</label><input id="edit-name" type="text">
+        <label>编号</label><input id="edit-code" type="text">
+        <label>类别</label><select id="edit-category">
+          <option value="">请选择</option>
+          <option value="古遗址">古遗址</option>
+          <option value="古墓葬">古墓葬</option>
+          <option value="古建筑">古建筑</option>
+          <option value="石窟寺及石刻">石窟寺及石刻</option>
+          <option value="近现代重要史迹及代表性建筑">近现代重要史迹及代表性建筑</option>
+          <option value="其他">其他</option>
+        </select>
+        <label>年代</label><input id="edit-era" type="text">
+        <label>批次</label><select id="edit-batch">
+          <option value="">请选择</option>
+          <option value="1">第1批</option><option value="2">第2批</option>
+          <option value="3">第3批</option><option value="4">第4批</option>
+          <option value="5">第5批</option><option value="6">第6批</option>
+          <option value="7">第7批</option><option value="8">第8批</option>
+        </select>
+        <label>省份</label><input id="edit-province" type="text">
+        <label>城市</label><input id="edit-city" type="text">
+        <label>地址</label><input id="edit-address" type="text">
+        <label>经度</label><input id="edit-lng" type="number" step="any">
+        <label>纬度</label><input id="edit-lat" type="number" step="any">
+        <label>描述</label><textarea id="edit-description" rows="3"></textarea>
+        <label>官网</label><input id="edit-website" type="text">
+        <label>百科链接</label><input id="edit-baike-url" type="text">
+      </div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="cancel" onclick="document.getElementById('modal-edit-poi').style.display='none'">取消</button>
+        <button id="btn-edit-save">保存</button>
       </div>
     </div>
   </div>

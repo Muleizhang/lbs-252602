@@ -198,6 +198,42 @@
     massMarks.setMap(map);
   }
 
+  function getPoiDataList() {
+    if (!massMarks) return [];
+    return massMarks.getData ? massMarks.getData() : [];
+  }
+
+  function updatePoiInMassMarks(id, newPoi) {
+    if (!massMarks) return;
+    var list = getPoiDataList();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].extData && list[i].extData.id === id) {
+        var b = parseInt(newPoi.batch, 10);
+        var sIdx = (!isNaN(b) && b > 0) ? (b - 1) % dotStyles.length : 0;
+        var pos = newPoi.location.gcj02;
+        list[i] = {
+          lnglat: [pos.lng, pos.lat],
+          style: sIdx,
+          extData: newPoi
+        };
+        break;
+      }
+    }
+    massMarks.setData(list);
+  }
+
+  function removePoiFromMassMarks(id) {
+    if (!massMarks) return;
+    var list = getPoiDataList();
+    var newList = [];
+    for (var i = 0; i < list.length; i++) {
+      if (!list[i].extData || list[i].extData.id !== id) {
+        newList.push(list[i]);
+      }
+    }
+    massMarks.setData(newList);
+  }
+
   function showInfo(poi) {
     var loc = poi.location;
     var html = '<h3>' + poi.name + '</h3>';
@@ -222,6 +258,12 @@
     }
     if (poi.baike_url) {
       html += '<div class="wiki-frame"><iframe src="' + poi.baike_url + '" sandbox="allow-scripts allow-same-origin allow-popups" loading="lazy"></iframe></div>';
+    }
+    if (currentUser && currentUser.role === 'admin') {
+      html += '<div class="admin-actions">'
+        + '<button class="btn-edit" data-id="' + poi.id + '">编辑</button>'
+        + '<button class="btn-del" data-id="' + poi.id + '" data-name="' + poi.name.replace(/"/g, '&quot;') + '">删除</button>'
+        + '</div>';
     }
     infoWin.innerHTML = html;
     infoWin.style.display = 'block';
@@ -332,9 +374,15 @@
         searchOverlay = null;
       }
       if (mouseTool) {
-        mouseTool.close(true); // true 表示同时清除绘制的图形
+        mouseTool.close(true);
         mouseTool = null;
       }
+      if (massMarks) {
+        massMarks.clear();
+        map.remove(massMarks);
+        massMarks = null;
+      }
+      infoWin.style.display = 'none';
       btnRect.classList.remove('active');
       btnRadius.classList.remove('active');
       rectActive = false;
@@ -680,6 +728,113 @@
         loadApiKeys();
       }
     });
+  });
+
+  // ===================== Admin POI Edit / Delete =====================
+
+  var modalEditPoi = document.getElementById('modal-edit-poi');
+  var btnEditSave = document.getElementById('btn-edit-save');
+
+  infoWin.addEventListener('click', function (e) {
+    var target = e.target;
+    if (target.classList.contains('btn-edit')) {
+      var id = target.getAttribute('data-id');
+      openEditModal(id);
+    } else if (target.classList.contains('btn-del')) {
+      var id = target.getAttribute('data-id');
+      var name = target.getAttribute('data-name');
+      if (confirm('确定删除「' + name + '」？此操作不可撤销。')) {
+        api('DELETE', '/pois/' + id).then(function (r) {
+          if (r.status === 200 && r.data && r.data.code === 0) {
+            removePoiFromMassMarks(id);
+            infoWin.style.display = 'none';
+          } else {
+            alert('删除失败：' + (r.data && r.data.message ? r.data.message : '未知错误'));
+          }
+        });
+      }
+    }
+  });
+
+  var currentEditPoi = null;
+
+  function openEditModal(id) {
+    api('GET', '/pois/' + id).then(function (r) {
+      if (r.status !== 200 || !r.data || r.data.code !== 0) {
+        alert('获取 POI 数据失败');
+        return;
+      }
+      var p = r.data.data;
+      currentEditPoi = p;
+      document.getElementById('edit-poi-id').value = p.id;
+      document.getElementById('edit-poi-title').textContent = '编辑：' + p.name;
+      document.getElementById('edit-name').value = p.name || '';
+      document.getElementById('edit-code').value = p.code || '';
+      document.getElementById('edit-category').value = p.category || '';
+      document.getElementById('edit-era').value = p.era || '';
+      document.getElementById('edit-batch').value = p.batch || '';
+      document.getElementById('edit-province').value = p.province || '';
+      document.getElementById('edit-city').value = p.city || '';
+      document.getElementById('edit-address').value = p.address || '';
+      document.getElementById('edit-lng').value = p.location.wgs84.lng;
+      document.getElementById('edit-lat').value = p.location.wgs84.lat;
+      document.getElementById('edit-description').value = p.description || '';
+      document.getElementById('edit-website').value = p.website || '';
+      document.getElementById('edit-baike-url').value = p.baike_url || '';
+      modalEditPoi.style.display = 'flex';
+    });
+  }
+
+  btnEditSave.addEventListener('click', function () {
+    if (!currentEditPoi) return;
+    var id = currentEditPoi.id;
+    var body = {
+      name: document.getElementById('edit-name').value.trim() || undefined,
+      code: document.getElementById('edit-code').value.trim() || undefined,
+      category: document.getElementById('edit-category').value || undefined,
+      era: document.getElementById('edit-era').value.trim() || undefined,
+      batch: document.getElementById('edit-batch').value ? parseInt(document.getElementById('edit-batch').value) : undefined,
+      province: document.getElementById('edit-province').value.trim() || undefined,
+      city: document.getElementById('edit-city').value.trim() || undefined,
+      address: document.getElementById('edit-address').value.trim() || undefined,
+      lng: parseFloat(document.getElementById('edit-lng').value),
+      lat: parseFloat(document.getElementById('edit-lat').value),
+      description: document.getElementById('edit-description').value.trim() || undefined,
+      website: document.getElementById('edit-website').value.trim() || undefined,
+      baike_url: document.getElementById('edit-baike-url').value.trim() || undefined,
+    };
+    if (isNaN(body.lng) || isNaN(body.lat)) {
+      alert('请输入有效的经纬度');
+      return;
+    }
+    btnEditSave.disabled = true;
+    btnEditSave.textContent = '保存中...';
+    api('PATCH', '/pois/' + id, body).then(function (r) {
+      btnEditSave.disabled = false;
+      btnEditSave.textContent = '保存';
+      if (r.status === 200 && r.data && r.data.code === 0) {
+        updatePoiInMassMarks(id, r.data.data);
+        modalEditPoi.style.display = 'none';
+        infoWin.style.display = 'none';
+      } else {
+        alert('保存失败：' + (r.data && r.data.message ? r.data.message : '未知错误'));
+      }
+    });
+  });
+
+  // ===================== Debug Panel Toggle =====================
+
+  var btnDebugToggle = document.getElementById('btn-debug-toggle');
+  var debugPanel = document.getElementById('debug-panel');
+
+  btnDebugToggle.addEventListener('click', function () {
+    if (debugPanel.style.display === 'none') {
+      debugPanel.style.display = 'flex';
+      btnDebugToggle.classList.add('active');
+    } else {
+      debugPanel.style.display = 'none';
+      btnDebugToggle.classList.remove('active');
+    }
   });
 
   tryRestoreSession();
